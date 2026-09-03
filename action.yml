@@ -29,6 +29,14 @@ inputs:
     description: 'Pass `--with-disable` to `bm sync` when `true`. Must be `true` or `false`. Without `environment-id`, disables actions missing from the config file in the development environment. With `environment-id`, propagates the disabled state from the source environment to the target.'
     required: false
     default: 'false'
+  pin-version:
+    description: 'Pass `--pin-version` to `bm sync` when `true`. Must be `true` or `false`. Valid only when `environment-id` is set. Pins the target environment to the version the source environment points to at sync time, instead of leaving it on "always latest". Requires @basemachina/cli 1.5.0 or later; the Action fails with a validation error before running `bm sync` if the installed CLI is older.'
+    required: false
+    default: 'false'
+  service-account-email:
+    description: 'Optional service account email used to disambiguate which service account to authenticate as when the OIDC ID token matches multiple service account trust policies. Propagated to the CLI as BM_SERVICE_ACCOUNT_EMAIL. Omit to keep current behavior.'
+    required: false
+    default: ''
 
 outputs:
   exit_code:
@@ -54,7 +62,9 @@ runs:
         INPUT_FROM: ${{ inputs.from }}
         INPUT_DRY: ${{ inputs.dry }}
         INPUT_WITH_DISABLE: ${{ inputs.with-disable }}
+        INPUT_PIN_VERSION: ${{ inputs.pin-version }}
         BM_OIDC_TOKEN: ${{ steps.auth.outputs.oidc_token }}
+        BM_SERVICE_ACCOUNT_EMAIL: ${{ inputs.service-account-email }}
         NODE_AUTH_TOKEN: ${{ github.token }}
         GITHUB_EVENT_NAME: ${{ github.event_name }}
       run: ${{ github.action_path }}/scripts/run.sh
@@ -85,7 +95,7 @@ runs:
       id: post-comment
       if: ${{ steps.pr.outputs.number != '' }}
       continue-on-error: true
-      uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v3.0.4
+      uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
       with:
         number: ${{ steps.pr.outputs.number }}
         header: ${{ steps.bm-sync.outputs.comment_tag }}

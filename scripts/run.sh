@@ -6,6 +6,9 @@ set -uo pipefail
 # shellcheck source=./_lib.sh
 source "$(dirname "$0")/_lib.sh"
 
+# --pin-version が @basemachina/cli に実装された最小バージョン
+PIN_VERSION_MIN_CLI_VERSION="1.5.0"
+
 case "${INPUT_DRY:-auto}" in
   auto|true|false) ;;
   *)
@@ -22,14 +25,47 @@ case "${INPUT_WITH_DISABLE:-false}" in
     ;;
 esac
 
+case "${INPUT_PIN_VERSION:-false}" in
+  true|false) ;;
+  *)
+    echo "::error::pin-version input は 'true' / 'false' のいずれかを指定してください (指定値: ${INPUT_PIN_VERSION})" >&2
+    exit 1
+    ;;
+esac
+
 if [ -n "${INPUT_FROM:-}" ] && [ -z "${INPUT_ENVIRONMENT_ID:-}" ]; then
   echo "::error::from input は environment-id 指定時のみ使用できます" >&2
+  exit 1
+fi
+
+if [ "${INPUT_PIN_VERSION:-false}" = "true" ] && [ -z "${INPUT_ENVIRONMENT_ID:-}" ]; then
+  echo "::error::pin-version input は environment-id 指定時のみ使用できます" >&2
   exit 1
 fi
 
 if [ -n "${INPUT_FROM:-}" ] && [ "${INPUT_FROM}" = "${INPUT_ENVIRONMENT_ID:-}" ]; then
   echo "::error::from input は environment-id と異なる環境 ID を指定してください" >&2
   exit 1
+fi
+
+# --pin-version は @basemachina/cli 1.5.0 未満では unknown flag エラーになり原因が分かりにくいため、
+# bm sync を呼ぶ前に install 済みバージョンを検証する
+if [ "${INPUT_PIN_VERSION:-false}" = "true" ]; then
+  installed_cli_version="$(bm::installed_cli_version)"
+  case "${installed_cli_version}" in
+    "")
+      echo "::warning::install 済み @basemachina/cli のバージョンを判定できなかったため、pin-version の事前検証をスキップします" >&2
+      ;;
+    *-*)
+      echo "::notice::install 済み @basemachina/cli は prerelease バージョン (${installed_cli_version}) のため、pin-version の事前検証をスキップします" >&2
+      ;;
+    *)
+      if bm::version_lt "${installed_cli_version}" "${PIN_VERSION_MIN_CLI_VERSION}"; then
+        echo "::error::pin-version input には @basemachina/cli ${PIN_VERSION_MIN_CLI_VERSION} 以降が必要です (install 済みバージョン: ${installed_cli_version})" >&2
+        exit 1
+      fi
+      ;;
+  esac
 fi
 
 # CLI の現仕様で environment ID は positional 引数
@@ -46,6 +82,10 @@ fi
 
 if [ "${INPUT_WITH_DISABLE:-false}" = "true" ]; then
   args+=(--with-disable)
+fi
+
+if [ "${INPUT_PIN_VERSION:-false}" = "true" ]; then
+  args+=(--pin-version)
 fi
 
 case "${INPUT_DRY:-auto}" in
